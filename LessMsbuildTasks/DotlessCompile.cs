@@ -74,7 +74,7 @@ namespace LessCompiler.Tasks
 
                     var shouldRun = true;
 
-                    if (outputFile.Exists)
+                    if (!ForceRun && outputFile.Exists)
                     {
                         shouldRun = Process(inputFile.FullName, outputFile.LastWriteTimeUtc);
                     }

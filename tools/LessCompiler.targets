@@ -2,8 +2,8 @@
 <!-- Note: Config and XML filenames should not contain a . character.  AppSettings.config = ok, Configuration.AppSettings.Config = bad -->
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   
-  <UsingTask AssemblyFile="LessCompiler.Tasks.dll" TaskName="DotlessCompile" />
-  <UsingTask AssemblyFile="LessCompiler.Tasks.dll" TaskName="CleanLessFiles" />
+  <UsingTask AssemblyFile="LessMsbuildTasks.dll" TaskName="DotlessCompile" />
+  <UsingTask AssemblyFile="LessMsbuildTasks.dll" TaskName="CleanLessFiles" />
   
   <ItemGroup>
     <AvailableItemName Include="DotLess">
@@ -12,7 +12,8 @@
   </ItemGroup>
   <PropertyGroup>
     <LessOutputDirectory Condition="$(LessOutputDirectory) == ''">$(WebProjectOutputDir)</LessOutputDirectory>
-    <LessMinifyOutput Condition="$(LessMinifyOutput) == ''">False</LessMinifyOutput>
+    <LessMinifyOutput Condition="$(LessMinifyOutput) == '' AND $(Configuration) == 'Debug'">False</LessMinifyOutput>
+	<LessMinifyOutput Condition="$(LessMinifyOutput) == '' AND $(Configuration) == 'Release'">True</LessMinifyOutput>
     <LessDebugMode Condition="$(LessDebugMode) == ''">False</LessDebugMode>
     <LessDisableUrlRewriting Condition="$(LessDisableUrlRewriting) == ''">False</LessDisableUrlRewriting>
     <LessImportAllFilesAsLess Condition="$(LessImportAllFilesAsLess) == ''">False</LessImportAllFilesAsLess>
