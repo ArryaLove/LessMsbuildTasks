@@ -1,0 +1,42 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<!-- Note: Config and XML filenames should not contain a . character.  AppSettings.config = ok, Configuration.AppSettings.Config = bad -->
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  
+  <UsingTask AssemblyFile="LessCompiler.Tasks.dll" TaskName="DotlessCompile" />
+  <UsingTask AssemblyFile="LessCompiler.Tasks.dll" TaskName="CleanLessFiles" />
+  
+  <ItemGroup>
+    <AvailableItemName Include="DotLess">
+      <Visible>false</Visible>
+    </AvailableItemName>
+  </ItemGroup>
+  <PropertyGroup>
+    <LessOutputDirectory Condition="$(LessOutputDirectory) == ''">$(WebProjectOutputDir)</LessOutputDirectory>
+    <LessMinifyOutput Condition="$(LessMinifyOutput) == ''">False</LessMinifyOutput>
+    <LessDebugMode Condition="$(LessDebugMode) == ''">False</LessDebugMode>
+    <LessDisableUrlRewriting Condition="$(LessDisableUrlRewriting) == ''">False</LessDisableUrlRewriting>
+    <LessImportAllFilesAsLess Condition="$(LessImportAllFilesAsLess) == ''">False</LessImportAllFilesAsLess>
+    <LessInlineCssFiles Condition="$(LessInlineCssFiles) == ''">False</LessInlineCssFiles>
+    <LessDisableVariableRedefines Condition="$(LessDisableVariableRedefines) == ''">False</LessDisableVariableRedefines>
+    <LessKeepFirstSpecialComment Condition="$(LessKeepFirstSpecialComment) == ''">False</LessKeepFirstSpecialComment>
+    <LessForceRun Condition="$(LessForceRun) == ''">False</LessForceRun>
+    <LessKeepRelativeDirectory Condition="$(LessKeepRelativeDirectory) == ''">True</LessKeepRelativeDirectory>
+    <OnAfter_CopyWebApplication>
+      $(OnAfter_CopyWebApplication);
+      CompileLessFiles;
+    </OnAfter_CopyWebApplication>
+  </PropertyGroup>
+
+  <Target Name="CleanCompiledLessFiles" AfterTargets="Clean">
+    <CleanLessFiles InputFiles="@(DotLess)" OutputFolder="$(LessOutputDirectory)" KeepRelativeDirectory="$(LessKeepRelativeDirectory)"/>
+  </Target>
+  
+  <Target Name="CompileLessFiles" AfterTargets="_CopyWebApplication">
+    <Message Text="Compiling .Less files..." />
+    <DotlessCompile InputFiles="@(DotLess)" OutputFolder="$(LessOutputDirectory)" MinifyOutput="$(LessMinifyOutput)"
+                    Debug="$(LessDebugMode)" DisableUrlRewriting="$(LessDisableUrlRewriting)"
+                    ImportAllFilesAsLess="$(LessImportAllFilesAsLess)" InlineCssFiles="$(LessInlineCssFiles)"
+                    DisableVariableRedefines="$(LessDisableVariableRedefines)" KeepFirstSpecialComment="$(LessKeepFirstSpecialComment)"
+                    ForceRun="$(LessForceRun)" KeepRelativeDirectory="$(LessKeepRelativeDirectory)"/>
+  </Target>
+</Project>
