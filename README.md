@@ -3,7 +3,9 @@ LessMsbuildTasks
 
 A targets file and MsBuild tasks, that will enable compiling of .Less files
 
-The easiest way to get it up and running is through installing it through NuGet (Its not there now but will be shortly)
+The easiest way to get it up and running is through installing it through NuGet 
+     
+     Install-Package LessMsbuildTasks
 
 The Nuget package will create a new folder in the solution directory called .less.  This folder will contain a .targets file as well as some dll's that are required for the .targets to work.
 
