@@ -49,6 +49,7 @@
   <ItemGroup>
     <Compile Include="CleanLessFiles.cs" />
     <Compile Include="DotlessCompile.cs" />
+    <Compile Include="LessMsBuildLogger.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
