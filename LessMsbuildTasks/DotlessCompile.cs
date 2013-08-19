@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using dotless.Core;
+using dotless.Core.Loggers;
 using dotless.Core.configuration;
 using Microsoft.Build.Framework;
 using Microsoft.Build.Utilities;
@@ -45,17 +47,20 @@ namespace LessCompiler.Tasks
 
         public override bool Execute()
         {
-            
+
             var config = new DotlessConfiguration
-                {
-                    ImportAllFilesAsLess = ImportAllFilesAsLess,
-                    MinifyOutput = MinifyOutput,
-                    Debug = Debug,
-                    DisableUrlRewriting = DisableUrlRewriting,
-                    DisableVariableRedefines =DisableVariableRedefines,
-                    InlineCssFiles = InlineCssFiles,
-                    KeepFirstSpecialComment = KeepFirstSpecialComment,
-                };
+            {
+                ImportAllFilesAsLess = ImportAllFilesAsLess,
+                MinifyOutput = MinifyOutput,
+                Debug = Debug,
+                DisableUrlRewriting = DisableUrlRewriting,
+                DisableVariableRedefines = DisableVariableRedefines,
+                InlineCssFiles = InlineCssFiles,
+                KeepFirstSpecialComment = KeepFirstSpecialComment,
+                LogLevel = LogLevel.Info,
+                Logger = typeof(LessMsBuildLogger)
+            };
+            LessMsBuildLogger.Logger = Log;
 
             var engineFactory = new EngineFactory(config);
             var engine = engineFactory.GetEngine();
@@ -74,7 +79,7 @@ namespace LessCompiler.Tasks
 
                     var shouldRun = true;
 
-                    if (!ForceRun && outputFile.Exists)
+                    if (outputFile.Exists)
                     {
                         shouldRun = Process(inputFile.FullName, outputFile.LastWriteTimeUtc);
                     }
@@ -86,10 +91,19 @@ namespace LessCompiler.Tasks
 
                         Log.LogMessage(MessageImportance.High, "Compiling: {0} to {1}", item.ItemSpec, outputFile.FullName);
                         Environment.CurrentDirectory = directory;
+
                         var less = engine.TransformToCss(text, inputFile.FullName);
 
-                        File.WriteAllText(outputFile.FullName, less);
+                        if (!engine.LastTransformationSuccessful)
+                        {
+                            errorOccured = true;
+                            File.Delete(outputFile.FullName);
+                        }
+                        else
+                        {
 
+                            File.WriteAllText(outputFile.FullName, less);
+                        }
                         Log.LogMessage(MessageImportance.High, "[Done]");
 
                         engine.ResetImports();
@@ -105,7 +119,7 @@ namespace LessCompiler.Tasks
                     Environment.CurrentDirectory = currentDirectory;
                 }
             }
-                        
+
             return !errorOccured;
         }
 
@@ -127,6 +141,6 @@ namespace LessCompiler.Tasks
             ProcessedFiles.Add(filename, ret);
             return ret;
         }
-        
+
     }
 }
