@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
     <metadata>
         <id>LessMsbuildTasks</id>
-        <version>1.0.0</version>
+        <version>1.0.4</version>
         <title>.Less Msbuild Tasks</title>
         <authors>James</authors>
         <owners />
@@ -12,6 +12,8 @@
         <summary>A targets file and MsBuild tasks, that will enable compiling of .Less files</summary>
     </metadata>
     <files>
-        <file src="tools\_._" target="tools\_._" />
+        <file src="tools\**\*.*" target="tools\"/>
+		<file src="tools\less\bin\lessc" target="tools\less\bin\lessc"/>
+		<file src="content\*.*" target="content\" />
     </files>
 </package>

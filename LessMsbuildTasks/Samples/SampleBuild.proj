@@ -1,0 +1,21 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <Import Project="..\..\tools\LessCompiler.targets" Condition="Exists('..\..\tools\LessCompiler.targets')" />
+    <PropertyGroup>
+        <LessOutputDirectory>$(MSBuildProjectDirectory)</LessOutputDirectory>
+    </PropertyGroup>
+    <Target Name="Clean">
+        <Message Importance="High" Text="Cleaning"/>
+    </Target>
+    <Target Name="_CopyWebApplication">
+        <Message Text="Inside _CopyWebApplication"/>
+    </Target>
+    <Target Name="Build">
+        <Message Text="Inside Build"/>
+        <CallTarget Targets="_CopyWebApplication"/>
+    </Target>
+    <ItemGroup>
+        <DotLess Include="test.less" />
+    </ItemGroup>
+
+    </Project>

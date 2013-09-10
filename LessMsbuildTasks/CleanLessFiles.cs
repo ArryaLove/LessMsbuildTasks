@@ -1,12 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
 using Microsoft.Build.Framework;
 using Microsoft.Build.Utilities;
 
-namespace LessCompiler.Tasks
+namespace LessMsbuildTasks
 {
     public class CleanLessFiles : Task
     {
@@ -31,8 +28,6 @@ namespace LessCompiler.Tasks
                         outputFile = new FileInfo(Path.Combine(OutputFolder, item.GetMetadata("RelativeDir"), item.GetMetadata("FileName") + ".css"));
                     else
                         outputFile = new FileInfo(Path.Combine(OutputFolder, item.GetMetadata("Filename") + ".css"));
-
-                    var shouldRun = true;
 
                     if (outputFile.Exists)
                     {

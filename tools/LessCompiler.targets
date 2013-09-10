@@ -1,10 +1,10 @@
 ﻿<?xml version="1.0" encoding="utf-8" ?>
 <!-- Note: Config and XML filenames should not contain a . character.  AppSettings.config = ok, Configuration.AppSettings.Config = bad -->
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  
-  <UsingTask AssemblyFile="LessMsbuildTasks.dll" TaskName="DotlessCompile" />
+
+  <UsingTask AssemblyFile="LessMsbuildTasks.dll" TaskName="NodelessCompile" />
   <UsingTask AssemblyFile="LessMsbuildTasks.dll" TaskName="CleanLessFiles" />
-  
+
   <ItemGroup>
     <AvailableItemName Include="DotLess">
       <Visible>false</Visible>
@@ -12,16 +12,12 @@
   </ItemGroup>
   <PropertyGroup>
     <LessOutputDirectory Condition="$(LessOutputDirectory) == ''">$(WebProjectOutputDir)</LessOutputDirectory>
-    <LessMinifyOutput Condition="$(LessMinifyOutput) == '' AND $(Configuration) == 'Debug'">False</LessMinifyOutput>
-	<LessMinifyOutput Condition="$(LessMinifyOutput) == '' AND $(Configuration) == 'Release'">True</LessMinifyOutput>
+    <LessMinifyOutput Condition="$(LessMinifyOutput) == ''">False</LessMinifyOutput>
     <LessDebugMode Condition="$(LessDebugMode) == ''">False</LessDebugMode>
-    <LessDisableUrlRewriting Condition="$(LessDisableUrlRewriting) == ''">False</LessDisableUrlRewriting>
+    <LessVerbose Condition="$(LessVerbose) == ''">False</LessVerbose>
     <LessImportAllFilesAsLess Condition="$(LessImportAllFilesAsLess) == ''">False</LessImportAllFilesAsLess>
-    <LessInlineCssFiles Condition="$(LessInlineCssFiles) == ''">False</LessInlineCssFiles>
-    <LessDisableVariableRedefines Condition="$(LessDisableVariableRedefines) == ''">False</LessDisableVariableRedefines>
-    <LessKeepFirstSpecialComment Condition="$(LessKeepFirstSpecialComment) == ''">False</LessKeepFirstSpecialComment>
-    <LessForceRun Condition="$(LessForceRun) == ''">False</LessForceRun>
     <LessKeepRelativeDirectory Condition="$(LessKeepRelativeDirectory) == ''">True</LessKeepRelativeDirectory>
+    <LessPath Condition="$(LessVerbose) == ''"></LessPath>
     <OnAfter_CopyWebApplication>
       $(OnAfter_CopyWebApplication);
       CompileLessFiles;
@@ -31,13 +27,11 @@
   <Target Name="CleanCompiledLessFiles" AfterTargets="Clean">
     <CleanLessFiles InputFiles="@(DotLess)" OutputFolder="$(LessOutputDirectory)" KeepRelativeDirectory="$(LessKeepRelativeDirectory)"/>
   </Target>
-  
+
   <Target Name="CompileLessFiles" AfterTargets="_CopyWebApplication">
-    <Message Text="Compiling .Less files..." />
-    <DotlessCompile InputFiles="@(DotLess)" OutputFolder="$(LessOutputDirectory)" MinifyOutput="$(LessMinifyOutput)"
-                    Debug="$(LessDebugMode)" DisableUrlRewriting="$(LessDisableUrlRewriting)"
-                    ImportAllFilesAsLess="$(LessImportAllFilesAsLess)" InlineCssFiles="$(LessInlineCssFiles)"
-                    DisableVariableRedefines="$(LessDisableVariableRedefines)" KeepFirstSpecialComment="$(LessKeepFirstSpecialComment)"
-                    ForceRun="$(LessForceRun)" KeepRelativeDirectory="$(LessKeepRelativeDirectory)"/>
+    <Message Text="Compiling .Less files (with Node)..." />
+    <NodelessCompile InputFiles="@(DotLess)" OutputFolder="$(LessOutputDirectory)" MinifyOutput="$(LessMinifyOutput)" LessPath="$(LessPath)"
+                     Verbose="$(LessVerbose)"
+                    Debug="$(LessDebugMode)" ImportAllFilesAsLess="$(LessImportAllFilesAsLess)" KeepRelativeDirectory="$(LessKeepRelativeDirectory)"/>
   </Target>
 </Project>
