@@ -34,4 +34,10 @@
                      Verbose="$(LessVerbose)"
                     Debug="$(LessDebugMode)" ImportAllFilesAsLess="$(LessImportAllFilesAsLess)" KeepRelativeDirectory="$(LessKeepRelativeDirectory)"/>
   </Target>
+  <Target Name="CompileLessFilesForMsBuild" BeforeTargets="Package">
+    <Message Text="Compiling .Less files (with Node)..." />
+    <NodelessCompile InputFiles="@(DotLess)" OutputFolder="$(WPPAllFilesInSingleFolder)" MinifyOutput="$(LessMinifyOutput)" LessPath="$(LessPath)"
+                     Verbose="$(LessVerbose)"
+                    Debug="$(LessDebugMode)" ImportAllFilesAsLess="$(LessImportAllFilesAsLess)" KeepRelativeDirectory="$(LessKeepRelativeDirectory)"/>
+  </Target>
 </Project>
