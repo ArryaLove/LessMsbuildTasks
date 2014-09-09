@@ -28,6 +28,11 @@ namespace LessMsbuildTasks
         /// </summary>
         public bool MinifyOutput { get; set; }
 
+			  /// <summary>
+			  /// If true, source maps are created
+			  /// </summary>
+				public bool CreateSourceMap { get; set; }
+
         /// <summary>
         /// Adds --line-numbers=comments
         /// This will output filename and line number references to all css
@@ -155,6 +160,9 @@ namespace LessMsbuildTasks
             //Compress CSS
             if (MinifyOutput)
                 args.Add( "-compress" );
+
+					if(CreateSourceMap)
+						args.Add(string.Format("--source-map={0}.map", outputFilePath));
 
             //Force all imports to be compiled
             if (ImportAllFilesAsLess)
