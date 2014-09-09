@@ -40,3 +40,5 @@ There are a few Msbuild properties that you can change in order to affect the fu
 **LessKeepFirstSpecialComment** (boolean) Keeps the first comment begninning /** when minified
 
 **LessForceRun** (boolean) If this is true, it will always run and not check to see if anything has changed
+
+**LessCreateSourceMap** (boolean) Creates source maps for generated CSS files (filename.css.map)

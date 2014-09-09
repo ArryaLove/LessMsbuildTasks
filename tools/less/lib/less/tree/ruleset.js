@@ -9,14 +9,41 @@ tree.Ruleset = function (selectors, rules, strictImports) {
 tree.Ruleset.prototype = {
     type: "Ruleset",
     accept: function (visitor) {
-        this.selectors = visitor.visit(this.selectors);
-        this.rules = visitor.visit(this.rules);
+        if (this.paths) {
+            visitor.visitArray(this.paths, true);
+        } else if (this.selectors) {
+            this.selectors = visitor.visitArray(this.selectors);
+        }
+        if (this.rules && this.rules.length) {
+            this.rules = visitor.visitArray(this.rules);
+        }
     },
     eval: function (env) {
-        var selectors = this.selectors && this.selectors.map(function (s) { return s.eval(env) });
-        var ruleset = new(tree.Ruleset)(selectors, this.rules.slice(0), this.strictImports);
-        var rules;
-        
+        var thisSelectors = this.selectors, selectors, 
+            selCnt, selector, i, defaultFunc = tree.defaultFunc, hasOnePassingSelector = false;
+
+        if (thisSelectors && (selCnt = thisSelectors.length)) {
+            selectors = [];
+            defaultFunc.error({
+                type: "Syntax", 
+                message: "it is currently only allowed in parametric mixin guards," 
+            });
+            for (i = 0; i < selCnt; i++) {
+                selector = thisSelectors[i].eval(env);
+                selectors.push(selector);
+                if (selector.evaldCondition) {
+                    hasOnePassingSelector = true;
+                }
+            }
+            defaultFunc.reset();  
+        } else {
+            hasOnePassingSelector = true;
+        }
+
+        var rules = this.rules ? this.rules.slice(0) : null,
+            ruleset = new(tree.Ruleset)(selectors, rules, this.strictImports),
+            rule, subRule;
+
         ruleset.originalRuleset = this;
         ruleset.root = this.root;
         ruleset.firstRoot = this.firstRoot;
@@ -25,15 +52,21 @@ tree.Ruleset.prototype = {
         if(this.debugInfo) {
             ruleset.debugInfo = this.debugInfo;
         }
+        
+        if (!hasOnePassingSelector) {
+            rules.length = 0;
+        }
 
         // push the current ruleset to the frames stack
-        env.frames.unshift(ruleset);
+        var envFrames = env.frames;
+        envFrames.unshift(ruleset);
 
         // currrent selectors
-        if (!env.selectors) {
-            env.selectors = [];
+        var envSelectors = env.selectors;
+        if (!envSelectors) {
+            env.selectors = envSelectors = [];
         }
-        env.selectors.unshift(this.selectors);
+        envSelectors.unshift(this.selectors);
 
         // Evaluate imports
         if (ruleset.root || ruleset.allowImports || !ruleset.strictImports) {
@@ -42,18 +75,20 @@ tree.Ruleset.prototype = {
 
         // Store the frames around mixin definitions,
         // so they can be evaluated like closures when the time comes.
-        for (var i = 0; i < ruleset.rules.length; i++) {
-            if (ruleset.rules[i] instanceof tree.mixin.Definition) {
-                ruleset.rules[i].frames = env.frames.slice(0);
+        var rsRules = ruleset.rules, rsRuleCnt = rsRules ? rsRules.length : 0;
+        for (i = 0; i < rsRuleCnt; i++) {
+            if (rsRules[i] instanceof tree.mixin.Definition || rsRules[i] instanceof tree.DetachedRuleset) {
+                rsRules[i] = rsRules[i].eval(env);
             }
         }
-        
+
         var mediaBlockCount = (env.mediaBlocks && env.mediaBlocks.length) || 0;
 
         // Evaluate mixin calls.
-        for (var i = 0; i < ruleset.rules.length; i++) {
-            if (ruleset.rules[i] instanceof tree.mixin.Call) {
-                rules = ruleset.rules[i].eval(env).filter(function(r) {
+        for (i = 0; i < rsRuleCnt; i++) {
+            if (rsRules[i] instanceof tree.mixin.Call) {
+                /*jshint loopfunc:true */
+                rules = rsRules[i].eval(env).filter(function(r) {
                     if ((r instanceof tree.Rule) && r.variable) {
                         // do not pollute the scope if the variable is
                         // already there. consider returning false here
@@ -62,27 +97,59 @@ tree.Ruleset.prototype = {
                     }
                     return true;
                 });
-                ruleset.rules.splice.apply(ruleset.rules, [i, 1].concat(rules));
+                rsRules.splice.apply(rsRules, [i, 1].concat(rules));
+                rsRuleCnt += rules.length - 1;
+                i += rules.length-1;
+                ruleset.resetCache();
+            } else if (rsRules[i] instanceof tree.RulesetCall) {
+                /*jshint loopfunc:true */
+                rules = rsRules[i].eval(env).rules.filter(function(r) {
+                    if ((r instanceof tree.Rule) && r.variable) {
+                        // do not pollute the scope at all
+                        return false;
+                    }
+                    return true;
+                });
+                rsRules.splice.apply(rsRules, [i, 1].concat(rules));
+                rsRuleCnt += rules.length - 1;
                 i += rules.length-1;
                 ruleset.resetCache();
             }
         }
+
+        // Evaluate everything else
+        for (i = 0; i < rsRules.length; i++) {
+            rule = rsRules[i];
+            if (! (rule instanceof tree.mixin.Definition || rule instanceof tree.DetachedRuleset)) {
+                rsRules[i] = rule = rule.eval ? rule.eval(env) : rule;
+            }
+        }
         
         // Evaluate everything else
-        for (var i = 0, rule; i < ruleset.rules.length; i++) {
-            rule = ruleset.rules[i];
+        for (i = 0; i < rsRules.length; i++) {
+            rule = rsRules[i];
+            // for rulesets, check if it is a css guard and can be removed
+            if (rule instanceof tree.Ruleset && rule.selectors && rule.selectors.length === 1) {
+                // check if it can be folded in (e.g. & where)
+                if (rule.selectors[0].isJustParentSelector()) {
+                    rsRules.splice(i--, 1);
 
-            if (! (rule instanceof tree.mixin.Definition)) {
-                ruleset.rules[i] = rule.eval ? rule.eval(env) : rule;
+                    for(var j = 0; j < rule.rules.length; j++) {
+                        subRule = rule.rules[j];
+                        if (!(subRule instanceof tree.Rule) || !subRule.variable) {
+                            rsRules.splice(++i, 0, subRule);
+                        }
+                    }
+                }
             }
         }
 
         // Pop the stack
-        env.frames.shift();
-        env.selectors.shift();
+        envFrames.shift();
+        envSelectors.shift();
         
         if (env.mediaBlocks) {
-            for(var i = mediaBlockCount; i < env.mediaBlocks.length; i++) {
+            for (i = mediaBlockCount; i < env.mediaBlocks.length; i++) {
                 env.mediaBlocks[i].bubbleSelectors(selectors);
             }
         }
@@ -90,15 +157,17 @@ tree.Ruleset.prototype = {
         return ruleset;
     },
     evalImports: function(env) {
-        var i, rules;
-        for (i = 0; i < this.rules.length; i++) {
-            if (this.rules[i] instanceof tree.Import) {
-                rules = this.rules[i].eval(env);
-                if (typeof rules.length === "number") {
-                    this.rules.splice.apply(this.rules, [i, 1].concat(rules));
-                    i+= rules.length-1;
+        var rules = this.rules, i, importRules;
+        if (!rules) { return; }
+
+        for (i = 0; i < rules.length; i++) {
+            if (rules[i] instanceof tree.Import) {
+                importRules = rules[i].eval(env);
+                if (importRules && importRules.length) {
+                    rules.splice.apply(rules, [i, 1].concat(importRules));
+                    i+= importRules.length-1;
                 } else {
-                    this.rules.splice(i, 1, rules);
+                    rules.splice(i, 1, importRules);
                 }
                 this.resetCache();
             }
@@ -116,44 +185,74 @@ tree.Ruleset.prototype = {
     matchArgs: function (args) {
         return !args || args.length === 0;
     },
+    // lets you call a css selector with a guard
+    matchCondition: function (args, env) {
+        var lastSelector = this.selectors[this.selectors.length-1];
+        if (!lastSelector.evaldCondition) {
+            return false;
+        }
+        if (lastSelector.condition &&
+            !lastSelector.condition.eval(
+                new(tree.evalEnv)(env,
+                    env.frames))) {
+            return false;
+        }
+        return true;
+    },
     resetCache: function () {
         this._rulesets = null;
         this._variables = null;
         this._lookups = {};
     },
     variables: function () {
-        if (this._variables) { return this._variables }
-        else {
-            return this._variables = this.rules.reduce(function (hash, r) {
+        if (!this._variables) {
+            this._variables = !this.rules ? {} : this.rules.reduce(function (hash, r) {
                 if (r instanceof tree.Rule && r.variable === true) {
                     hash[r.name] = r;
                 }
                 return hash;
             }, {});
         }
+        return this._variables;
     },
     variable: function (name) {
         return this.variables()[name];
     },
     rulesets: function () {
-        return this.rules.filter(function (r) {
-            return (r instanceof tree.Ruleset) || (r instanceof tree.mixin.Definition);
-        });
+        if (!this.rules) { return null; }
+
+        var _Ruleset = tree.Ruleset, _MixinDefinition = tree.mixin.Definition,
+            filtRules = [], rules = this.rules, cnt = rules.length,
+            i, rule;
+
+        for (i = 0; i < cnt; i++) {
+            rule = rules[i];
+            if ((rule instanceof _Ruleset) || (rule instanceof _MixinDefinition)) {
+                filtRules.push(rule);
+            }
+        }
+
+        return filtRules;
+    },
+    prependRule: function (rule) {
+        var rules = this.rules;
+        if (rules) { rules.unshift(rule); } else { this.rules = [ rule ]; }
     },
     find: function (selector, self) {
         self = self || this;
-        var rules = [], rule, match,
+        var rules = [], match,
             key = selector.toCSS();
 
-        if (key in this._lookups) { return this._lookups[key] }
+        if (key in this._lookups) { return this._lookups[key]; }
 
         this.rulesets().forEach(function (rule) {
             if (rule !== self) {
                 for (var j = 0; j < rule.selectors.length; j++) {
-                    if (match = selector.match(rule.selectors[j])) {
-                        if (selector.elements.length > rule.selectors[j].elements.length) {
+                    match = selector.match(rule.selectors[j]);
+                    if (match) {
+                        if (selector.elements.length > match) {
                             Array.prototype.push.apply(rules, rule.find(
-                                new(tree.Selector)(selector.elements.slice(1)), self));
+                                new(tree.Selector)(selector.elements.slice(match)), self));
                         } else {
                             rules.push(rule);
                         }
@@ -162,108 +261,147 @@ tree.Ruleset.prototype = {
                 }
             }
         });
-        return this._lookups[key] = rules;
+        this._lookups[key] = rules;
+        return rules;
     },
-    //
-    // Entry point for code generation
-    //
-    //     `context` holds an array of arrays.
-    //
-    toCSS: function (env) {
-        var css = [],      // The CSS output
-            rules = [],    // node.Rule instances
-           _rules = [],    //
-            rulesets = [], // node.Ruleset instances
-            selector,      // The fully rendered selector
+    genCSS: function (env, output) {
+        var i, j,
+            charsetRuleNodes = [],
+            ruleNodes = [],
+            rulesetNodes = [],
+            rulesetNodeCnt,
             debugInfo,     // Line number debugging
-            rule;
+            rule,
+            path;
 
-        // Compile rules and rulesets
-        for (var i = 0; i < this.rules.length; i++) {
-            rule = this.rules[i];
+        env.tabLevel = (env.tabLevel || 0);
 
-            if (rule.rules || (rule instanceof tree.Media)) {
-                rulesets.push(rule.toCSS(env));
-            } else if (rule instanceof tree.Directive) {
-                var cssValue = rule.toCSS(env);
-                // Output only the first @charset definition as such - convert the others
-                // to comments in case debug is enabled
-                if (rule.name === "@charset") {
-                    // Only output the debug info together with subsequent @charset definitions
-                    // a comment (or @media statement) before the actual @charset directive would
-                    // be considered illegal css as it has to be on the first line
-                    if (env.charset) {
-                        if (rule.debugInfo) {
-                            rulesets.push(tree.debugInfo(env, rule));
-                            rulesets.push(new tree.Comment("/* "+cssValue.replace(/\n/g, "")+" */\n").toCSS(env));
-                        }
-                        continue;
-                    }
-                    env.charset = true;
-                }
-                rulesets.push(cssValue);
-            } else if (rule instanceof tree.Comment) {
-                if (!rule.silent) {
-                    if (this.root) {
-                        rulesets.push(rule.toCSS(env));
-                    } else {
-                        rules.push(rule.toCSS(env));
-                    }
-                }
-            } else {
-                if (rule.toCSS && !rule.variable) {
-                    if (this.firstRoot && rule instanceof tree.Rule) {
-                        throw { message: "properties must be inside selector blocks, they cannot be in the root.",
-                            index: rule.index, filename: rule.currentFileInfo ? rule.currentFileInfo.filename : null};
-                    }
-                    rules.push(rule.toCSS(env));
-                } else if (rule.value && !rule.variable) {
-                    rules.push(rule.value.toString());
-                }
-            }
-        } 
-
-        // Remove last semicolon
-        if (env.compress && rules.length) {
-            rule = rules[rules.length - 1];
-            if (rule.charAt(rule.length - 1) === ';') {
-                rules[rules.length - 1] = rule.substring(0, rule.length - 1);
-            }
+        if (!this.root) {
+            env.tabLevel++;
         }
 
-        rulesets = rulesets.join('');
+        var tabRuleStr = env.compress ? '' : Array(env.tabLevel + 1).join("  "),
+            tabSetStr = env.compress ? '' : Array(env.tabLevel).join("  "),
+            sep;
+
+        function isRulesetLikeNode(rule, root) {
+             // if it has nested rules, then it should be treated like a ruleset
+             if (rule.rules)
+                 return true;
+
+             // medias and comments do not have nested rules, but should be treated like rulesets anyway
+             if ( (rule instanceof tree.Media) || (root && rule instanceof tree.Comment))
+                 return true;
+
+             // some directives and anonumoust nodes are ruleset like, others are not
+             if ((rule instanceof tree.Directive) || (rule instanceof tree.Anonymous)) {
+                 return rule.isRulesetLike();
+             }
+
+             //anything else is assumed to be a rule
+             return false;
+        }
+
+        for (i = 0; i < this.rules.length; i++) {
+            rule = this.rules[i];
+            if (isRulesetLikeNode(rule, this.root)) {
+                rulesetNodes.push(rule);
+            } else {
+                //charsets should float on top of everything
+                if (rule.isCharset && rule.isCharset()) {
+                    charsetRuleNodes.push(rule);
+                } else {
+                    ruleNodes.push(rule);
+                }
+            }
+        }
+        ruleNodes = charsetRuleNodes.concat(ruleNodes);
 
         // If this is the root node, we don't render
         // a selector, or {}.
-        // Otherwise, only output if this ruleset has rules.
-        if (this.root) {
-            css.push(rules.join(env.compress ? '' : '\n'));
-        } else {
-            if (rules.length > 0) {
-                debugInfo = tree.debugInfo(env, this);
-                selector = this.paths.map(function (p) {
-                    return p.map(function (s) {
-                        return s.toCSS(env);
-                    }).join('').trim();
-                }).join(env.compress ? ',' : ',\n');
+        if (!this.root) {
+            debugInfo = tree.debugInfo(env, this, tabSetStr);
 
-                // Remove duplicates
-                for (var i = rules.length - 1; i >= 0; i--) {
-                    if (rules[i].slice(0, 2) === "/*" ||  _rules.indexOf(rules[i]) === -1) {
-                        _rules.unshift(rules[i]);
-                    }
+            if (debugInfo) {
+                output.add(debugInfo);
+                output.add(tabSetStr);
+            }
+
+            var paths = this.paths, pathCnt = paths.length,
+                pathSubCnt;
+
+            sep = env.compress ? ',' : (',\n' + tabSetStr);
+
+            for (i = 0; i < pathCnt; i++) {
+                path = paths[i];
+                if (!(pathSubCnt = path.length)) { continue; }
+                if (i > 0) { output.add(sep); }
+
+                env.firstSelector = true;
+                path[0].genCSS(env, output);
+
+                env.firstSelector = false;
+                for (j = 1; j < pathSubCnt; j++) {
+                    path[j].genCSS(env, output);
                 }
-                rules = _rules;
+            }
 
-                css.push(debugInfo + selector + 
-                        (env.compress ? '{' : ' {\n  ') +
-                        rules.join(env.compress ? '' : '\n  ') +
-                        (env.compress ? '}' : '\n}\n'));
+            output.add((env.compress ? '{' : ' {\n') + tabRuleStr);
+        }
+
+        // Compile rules and rulesets
+        for (i = 0; i < ruleNodes.length; i++) {
+            rule = ruleNodes[i];
+
+            // @page{ directive ends up with root elements inside it, a mix of rules and rulesets
+            // In this instance we do not know whether it is the last property
+            if (i + 1 === ruleNodes.length && (!this.root || rulesetNodes.length === 0 || this.firstRoot)) {
+                env.lastRule = true;
+            }
+
+            if (rule.genCSS) {
+                rule.genCSS(env, output);
+            } else if (rule.value) {
+                output.add(rule.value.toString());
+            }
+
+            if (!env.lastRule) {
+                output.add(env.compress ? '' : ('\n' + tabRuleStr));
+            } else {
+                env.lastRule = false;
             }
         }
-        css.push(rulesets);
 
-        return css.join('')  + (env.compress ? '\n' : '');
+        if (!this.root) {
+            output.add((env.compress ? '}' : '\n' + tabSetStr + '}'));
+            env.tabLevel--;
+        }
+
+        sep = (env.compress ? "" : "\n") + (this.root ? tabRuleStr : tabSetStr);
+        rulesetNodeCnt = rulesetNodes.length;
+        if (rulesetNodeCnt) {
+            if (ruleNodes.length && sep) { output.add(sep); }
+            rulesetNodes[0].genCSS(env, output);
+            for (i = 1; i < rulesetNodeCnt; i++) {
+                if (sep) { output.add(sep); }
+                rulesetNodes[i].genCSS(env, output);
+            }
+        }
+
+        if (!output.isEmpty() && !env.compress && this.firstRoot) {
+            output.add('\n');
+        }
+    },
+
+    toCSS: tree.toCSS,
+
+    markReferenced: function () {
+        if (!this.selectors) {
+            return;
+        }
+        for (var s = 0; s < this.selectors.length; s++) {
+            this.selectors[s].markReferenced();
+        }
     },
 
     joinSelectors: function (paths, context, selectors) {
@@ -289,7 +427,7 @@ tree.Ruleset.prototype = {
     
         if (!hasParentSelector) {
             if (context.length > 0) {
-                for(i = 0; i < context.length; i++) {
+                for (i = 0; i < context.length; i++) {
                     paths.push(context[i].concat(selector));
                 }
             }
@@ -333,22 +471,22 @@ tree.Ruleset.prototype = {
                 }
 
                 // loop through our current selectors
-                for(j = 0; j < newSelectors.length; j++) {
+                for (j = 0; j < newSelectors.length; j++) {
                     sel = newSelectors[j];
                     // if we don't have any parent paths, the & might be in a mixin so that it can be used
                     // whether there are parents or not
-                    if (context.length == 0) {
+                    if (context.length === 0) {
                         // the combinator used on el should now be applied to the next element instead so that
                         // it is not lost
                         if (sel.length > 0) {
                             sel[0].elements = sel[0].elements.slice(0);
-                            sel[0].elements.push(new(tree.Element)(el.combinator, '', 0)); //new Element(el.Combinator,  ""));
+                            sel[0].elements.push(new(tree.Element)(el.combinator, '', el.index, el.currentFileInfo));
                         }
                         selectorsMultiplied.push(sel);
                     }
                     else {
                         // and the parent selectors
-                        for(k = 0; k < context.length; k++) {
+                        for (k = 0; k < context.length; k++) {
                             parentSel = context[k];
                             // We need to put the current selectors
                             // then join the last selector's elements on to the parents selectors
@@ -364,11 +502,11 @@ tree.Ruleset.prototype = {
                             if (sel.length > 0) {
                                 newSelectorPath = sel.slice(0);
                                 lastSelector = newSelectorPath.pop();
-                                newJoinedSelector = new(tree.Selector)(lastSelector.elements.slice(0), selector.extendList);
+                                newJoinedSelector = selector.createDerived(lastSelector.elements.slice(0));
                                 newJoinedSelectorEmpty = false;
                             }
                             else {
-                                newJoinedSelector = new(tree.Selector)([], selector.extendList);
+                                newJoinedSelector = selector.createDerived([]);
                             }
 
                             //put together the parent selectors after the join
@@ -380,7 +518,7 @@ tree.Ruleset.prototype = {
                                 newJoinedSelectorEmpty = false;
 
                                 // join the elements so far with the first part of the parent
-                                newJoinedSelector.elements.push(new(tree.Element)(el.combinator, parentSel[0].elements[0].value, 0));
+                                newJoinedSelector.elements.push(new(tree.Element)(el.combinator, parentSel[0].elements[0].value, el.index, el.currentFileInfo));
                                 newJoinedSelector.elements = newJoinedSelector.elements.concat(parentSel[0].elements.slice(1));
                             }
 
@@ -410,7 +548,7 @@ tree.Ruleset.prototype = {
             this.mergeElementsOnToSelectors(currentElements, newSelectors);
         }
 
-        for(i = 0; i < newSelectors.length; i++) {
+        for (i = 0; i < newSelectors.length; i++) {
             if (newSelectors[i].length > 0) {
                 paths.push(newSelectors[i]);
             }
@@ -418,19 +556,19 @@ tree.Ruleset.prototype = {
     },
     
     mergeElementsOnToSelectors: function(elements, selectors) {
-        var i, sel, extendList;
+        var i, sel;
 
-        if (selectors.length == 0) {
+        if (selectors.length === 0) {
             selectors.push([ new(tree.Selector)(elements) ]);
             return;
         }
 
-        for(i = 0; i < selectors.length; i++) {
+        for (i = 0; i < selectors.length; i++) {
             sel = selectors[i];
 
             // if the previous thing in sel is a parent this needs to join on to it
             if (sel.length > 0) {
-                sel[sel.length - 1] = new(tree.Selector)(sel[sel.length - 1].elements.concat(elements), sel[sel.length - 1].extendList);
+                sel[sel.length - 1] = sel[sel.length - 1].createDerived(sel[sel.length - 1].elements.concat(elements));
             }
             else {
                 sel.push(new(tree.Selector)(elements));

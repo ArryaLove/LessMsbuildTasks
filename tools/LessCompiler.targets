@@ -13,6 +13,7 @@
   <PropertyGroup>
     <LessOutputDirectory Condition="$(LessOutputDirectory) == ''">$(WebProjectOutputDir)</LessOutputDirectory>
     <LessMinifyOutput Condition="$(LessMinifyOutput) == ''">False</LessMinifyOutput>
+		<LessCreateSourceMap Condition="$(LessCreateSourceMap) == ''">False</LessCreateSourceMap>
     <LessDebugMode Condition="$(LessDebugMode) == ''">False</LessDebugMode>
     <LessVerbose Condition="$(LessVerbose) == ''">False</LessVerbose>
     <LessImportAllFilesAsLess Condition="$(LessImportAllFilesAsLess) == ''">False</LessImportAllFilesAsLess>
@@ -30,13 +31,13 @@
 
   <Target Name="CompileLessFiles" AfterTargets="_CopyWebApplication">
     <Message Text="Compiling .Less files (with Node)..." />
-    <NodelessCompile InputFiles="@(DotLess)" OutputFolder="$(LessOutputDirectory)" MinifyOutput="$(LessMinifyOutput)" LessPath="$(LessPath)"
+    <NodelessCompile InputFiles="@(DotLess)" OutputFolder="$(LessOutputDirectory)" MinifyOutput="$(LessMinifyOutput)" CreateSourceMap="$(LessCreateSourceMap)" LessPath="$(LessPath)"
                      Verbose="$(LessVerbose)"
                     Debug="$(LessDebugMode)" ImportAllFilesAsLess="$(LessImportAllFilesAsLess)" KeepRelativeDirectory="$(LessKeepRelativeDirectory)"/>
   </Target>
   <Target Name="CompileLessFilesForMsBuild" BeforeTargets="Package">
     <Message Text="Compiling .Less files (with Node)..." />
-    <NodelessCompile InputFiles="@(DotLess)" OutputFolder="$(WPPAllFilesInSingleFolder)" MinifyOutput="$(LessMinifyOutput)" LessPath="$(LessPath)"
+    <NodelessCompile InputFiles="@(DotLess)" OutputFolder="$(WPPAllFilesInSingleFolder)" MinifyOutput="$(LessMinifyOutput)" CreateSourceMap="$(LessCreateSourceMap)" LessPath="$(LessPath)"
                      Verbose="$(LessVerbose)"
                     Debug="$(LessDebugMode)" ImportAllFilesAsLess="$(LessImportAllFilesAsLess)" KeepRelativeDirectory="$(LessKeepRelativeDirectory)"/>
   </Target>

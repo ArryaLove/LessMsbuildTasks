@@ -5,7 +5,7 @@ tree.functions = {
         return this.rgba(r, g, b, 1.0);
     },
     rgba: function (r, g, b, a) {
-        var rgb = [r, g, b].map(function (c) { return scaled(c, 256); });
+        var rgb = [r, g, b].map(function (c) { return scaled(c, 255); });
         a = number(a);
         return new(tree.Color)(rgb, a);
     },
@@ -13,6 +13,14 @@ tree.functions = {
         return this.hsla(h, s, l, 1.0);
     },
     hsla: function (h, s, l, a) {
+        function hue(h) {
+            h = h < 0 ? h + 1 : (h > 1 ? h - 1 : h);
+            if      (h * 6 < 1) { return m1 + (m2 - m1) * h * 6; }
+            else if (h * 2 < 1) { return m2; }
+            else if (h * 3 < 2) { return m1 + (m2 - m1) * (2/3 - h) * 6; }
+            else                { return m1; }
+        }
+
         h = (number(h) % 360) / 360;
         s = clamp(number(s)); l = clamp(number(l)); a = clamp(number(a));
 
@@ -23,14 +31,6 @@ tree.functions = {
                          hue(h)       * 255,
                          hue(h - 1/3) * 255,
                          a);
-
-        function hue(h) {
-            h = h < 0 ? h + 1 : (h > 1 ? h - 1 : h);
-            if      (h * 6 < 1) return m1 + (m2 - m1) * h * 6;
-            else if (h * 2 < 1) return m2;
-            else if (h * 3 < 2) return m1 + (m2 - m1) * (2/3 - h) * 6;
-            else                return m1;
-        }
     },
 
     hsv: function(h, s, v) {
@@ -63,22 +63,22 @@ tree.functions = {
     },
 
     hue: function (color) {
-        return new(tree.Dimension)(Math.round(color.toHSL().h));
+        return new(tree.Dimension)(color.toHSL().h);
     },
     saturation: function (color) {
-        return new(tree.Dimension)(Math.round(color.toHSL().s * 100), '%');
+        return new(tree.Dimension)(color.toHSL().s * 100, '%');
     },
     lightness: function (color) {
-        return new(tree.Dimension)(Math.round(color.toHSL().l * 100), '%');
+        return new(tree.Dimension)(color.toHSL().l * 100, '%');
     },
     hsvhue: function(color) {
-        return new(tree.Dimension)(Math.round(color.toHSV().h));
+        return new(tree.Dimension)(color.toHSV().h);
     },
     hsvsaturation: function (color) {
-        return new(tree.Dimension)(Math.round(color.toHSV().s * 100), '%');
+        return new(tree.Dimension)(color.toHSV().s * 100, '%');
     },
     hsvvalue: function (color) {
-        return new(tree.Dimension)(Math.round(color.toHSV().v * 100), '%');
+        return new(tree.Dimension)(color.toHSV().v * 100, '%');
     },
     red: function (color) {
         return new(tree.Dimension)(color.rgb[0]);
@@ -93,9 +93,22 @@ tree.functions = {
         return new(tree.Dimension)(color.toHSL().a);
     },
     luma: function (color) {
-        return new(tree.Dimension)(Math.round(color.luma() * color.alpha * 100), '%');
+        return new(tree.Dimension)(color.luma() * color.alpha * 100, '%');
+    },
+    luminance: function (color) {
+        var luminance =
+            (0.2126 * color.rgb[0] / 255)
+          + (0.7152 * color.rgb[1] / 255)
+          + (0.0722 * color.rgb[2] / 255);
+
+        return new(tree.Dimension)(luminance * color.alpha * 100, '%');
     },
     saturate: function (color, amount) {
+        // filter: saturate(3.2);
+        // should be kept as is, so check for color
+        if (!color.rgb) {
+            return null;
+        }
         var hsl = color.toHSL();
 
         hsl.s += amount.value / 100;
@@ -201,40 +214,59 @@ tree.functions = {
         } else {
             threshold = number(threshold);
         }
-        if ((color.luma() * color.alpha) < threshold) {
+        if (color.luma() < threshold) {
             return light;
         } else {
             return dark;
         }
     },
     e: function (str) {
-        return new(tree.Anonymous)(str instanceof tree.JavaScript ? str.evaluated : str);
+        return new(tree.Anonymous)(str instanceof tree.JavaScript ? str.evaluated : str.value);
     },
     escape: function (str) {
         return new(tree.Anonymous)(encodeURI(str.value).replace(/=/g, "%3D").replace(/:/g, "%3A").replace(/#/g, "%23").replace(/;/g, "%3B").replace(/\(/g, "%28").replace(/\)/g, "%29"));
     },
-    '%': function (quoted /* arg, arg, ...*/) {
+    replace: function (string, pattern, replacement, flags) {
+        var result = string.value;
+
+        result = result.replace(new RegExp(pattern.value, flags ? flags.value : ''), replacement.value);
+        return new(tree.Quoted)(string.quote || '', result, string.escaped);
+    },
+    '%': function (string /* arg, arg, ...*/) {
         var args = Array.prototype.slice.call(arguments, 1),
-            str = quoted.value;
+            result = string.value;
 
         for (var i = 0; i < args.length; i++) {
-            str = str.replace(/%[sda]/i, function(token) {
+            /*jshint loopfunc:true */
+            result = result.replace(/%[sda]/i, function(token) {
                 var value = token.match(/s/i) ? args[i].value : args[i].toCSS();
                 return token.match(/[A-Z]$/) ? encodeURIComponent(value) : value;
             });
         }
-        str = str.replace(/%%/g, '%');
-        return new(tree.Quoted)('"' + str + '"', str);
+        result = result.replace(/%%/g, '%');
+        return new(tree.Quoted)(string.quote || '', result, string.escaped);
     },
     unit: function (val, unit) {
-        return new(tree.Dimension)(val.value, unit ? unit.toCSS() : "");
+        if(!(val instanceof tree.Dimension)) {
+            throw { type: "Argument", message: "the first argument to unit must be a number" + (val instanceof tree.Operation ? ". Have you forgotten parenthesis?" : "") };
+        }
+        if (unit) {
+            if (unit instanceof tree.Keyword) {
+                unit = unit.value;
+            } else {
+                unit = unit.toCSS();
+            }
+        } else {
+            unit = "";
+        }
+        return new(tree.Dimension)(val.value, unit);
     },
     convert: function (val, unit) {
         return val.convertTo(unit.value);
     },
     round: function (n, f) {
         var fraction = typeof(f) === "undefined" ? 0 : f.value;
-        return this._math(function(num) { return num.toFixed(fraction); }, null, n);
+        return _math(function(num) { return num.toFixed(fraction); }, null, n);
     },
     pi: function () {
         return new(tree.Dimension)(Math.PI);
@@ -252,25 +284,75 @@ tree.functions = {
 
         return new(tree.Dimension)(Math.pow(x.value, y.value), x.unit);
     },
-    _math: function (fn, unit, n) {
-        if (n instanceof tree.Dimension) {
-            return new(tree.Dimension)(fn(parseFloat(n.value)), unit == null ? n.unit : unit);
-        } else if (typeof(n) === 'number') {
-            return fn(n);
-        } else {
-            throw { type: "Argument", message: "argument must be a number" };
+    _minmax: function (isMin, args) {
+        args = Array.prototype.slice.call(args);
+        switch(args.length) {
+            case 0: throw { type: "Argument", message: "one or more arguments required" };
         }
+        var i, j, current, currentUnified, referenceUnified, unit, unitStatic, unitClone,
+            order  = [], // elems only contains original argument values.
+            values = {}; // key is the unit.toString() for unified tree.Dimension values,
+                         // value is the index into the order array.
+        for (i = 0; i < args.length; i++) {
+            current = args[i];
+            if (!(current instanceof tree.Dimension)) {
+                if(Array.isArray(args[i].value)) {
+                    Array.prototype.push.apply(args, Array.prototype.slice.call(args[i].value));
+                }
+                continue;
+            }
+            currentUnified = current.unit.toString() === "" && unitClone !== undefined ? new(tree.Dimension)(current.value, unitClone).unify() : current.unify();
+            unit = currentUnified.unit.toString() === "" && unitStatic !== undefined ? unitStatic : currentUnified.unit.toString();
+            unitStatic = unit !== "" && unitStatic === undefined || unit !== "" && order[0].unify().unit.toString() === "" ? unit : unitStatic;
+            unitClone = unit !== "" && unitClone === undefined ? current.unit.toString() : unitClone;
+            j = values[""] !== undefined && unit !== "" && unit === unitStatic ? values[""] : values[unit];
+            if (j === undefined) {
+                if(unitStatic !== undefined && unit !== unitStatic) {
+                    throw{ type: "Argument", message: "incompatible types" };
+                }
+                values[unit] = order.length;
+                order.push(current);
+                continue;
+            }
+            referenceUnified = order[j].unit.toString() === "" && unitClone !== undefined ? new(tree.Dimension)(order[j].value, unitClone).unify() : order[j].unify();
+            if ( isMin && currentUnified.value < referenceUnified.value ||
+                !isMin && currentUnified.value > referenceUnified.value) {
+                order[j] = current;
+            }
+        }
+        if (order.length == 1) {
+            return order[0];
+        }
+        args = order.map(function (a) { return a.toCSS(this.env); }).join(this.env.compress ? "," : ", ");
+        return new(tree.Anonymous)((isMin ? "min" : "max") + "(" + args + ")");
+    },
+    min: function () {
+        return this._minmax(true, arguments);
+    },
+    max: function () {
+        return this._minmax(false, arguments);
+    },
+    "get-unit": function (n) {
+        return new(tree.Anonymous)(n.unit);
     },
     argb: function (color) {
         return new(tree.Anonymous)(color.toARGB());
-
     },
     percentage: function (n) {
         return new(tree.Dimension)(n.value * 100, '%');
     },
     color: function (n) {
         if (n instanceof tree.Quoted) {
-            return new(tree.Color)(n.value.slice(1));
+            var colorCandidate = n.value,
+                returnColor;
+            returnColor = tree.Color.fromKeyword(colorCandidate);
+            if (returnColor) {
+                return returnColor;
+            }
+            if (/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})/.test(colorCandidate)) {
+                return new(tree.Color)(colorCandidate.slice(1));
+            }
+            throw { type: "Argument", message: "argument must be a color keyword or 3/6 digit hex e.g. #FFF" };
         } else {
             throw { type: "Argument", message: "argument must be a string" };
         }
@@ -305,66 +387,6 @@ tree.functions = {
     _isa: function (n, Type) {
         return (n instanceof Type) ? tree.True : tree.False;
     },
-    
-    /* Blending modes */
-    
-    multiply: function(color1, color2) {
-        var r = color1.rgb[0] * color2.rgb[0] / 255;
-        var g = color1.rgb[1] * color2.rgb[1] / 255;
-        var b = color1.rgb[2] * color2.rgb[2] / 255;
-        return this.rgb(r, g, b);
-    },
-    screen: function(color1, color2) {
-        var r = 255 - (255 - color1.rgb[0]) * (255 - color2.rgb[0]) / 255;
-        var g = 255 - (255 - color1.rgb[1]) * (255 - color2.rgb[1]) / 255;
-        var b = 255 - (255 - color1.rgb[2]) * (255 - color2.rgb[2]) / 255;
-        return this.rgb(r, g, b);
-    },
-    overlay: function(color1, color2) {
-        var r = color1.rgb[0] < 128 ? 2 * color1.rgb[0] * color2.rgb[0] / 255 : 255 - 2 * (255 - color1.rgb[0]) * (255 - color2.rgb[0]) / 255;
-        var g = color1.rgb[1] < 128 ? 2 * color1.rgb[1] * color2.rgb[1] / 255 : 255 - 2 * (255 - color1.rgb[1]) * (255 - color2.rgb[1]) / 255;
-        var b = color1.rgb[2] < 128 ? 2 * color1.rgb[2] * color2.rgb[2] / 255 : 255 - 2 * (255 - color1.rgb[2]) * (255 - color2.rgb[2]) / 255;
-        return this.rgb(r, g, b);
-    },
-    softlight: function(color1, color2) {
-        var t = color2.rgb[0] * color1.rgb[0] / 255;
-        var r = t + color1.rgb[0] * (255 - (255 - color1.rgb[0]) * (255 - color2.rgb[0]) / 255 - t) / 255;
-        t = color2.rgb[1] * color1.rgb[1] / 255;
-        var g = t + color1.rgb[1] * (255 - (255 - color1.rgb[1]) * (255 - color2.rgb[1]) / 255 - t) / 255;
-        t = color2.rgb[2] * color1.rgb[2] / 255;
-        var b = t + color1.rgb[2] * (255 - (255 - color1.rgb[2]) * (255 - color2.rgb[2]) / 255 - t) / 255;
-        return this.rgb(r, g, b);
-    },
-    hardlight: function(color1, color2) {
-        var r = color2.rgb[0] < 128 ? 2 * color2.rgb[0] * color1.rgb[0] / 255 : 255 - 2 * (255 - color2.rgb[0]) * (255 - color1.rgb[0]) / 255;
-        var g = color2.rgb[1] < 128 ? 2 * color2.rgb[1] * color1.rgb[1] / 255 : 255 - 2 * (255 - color2.rgb[1]) * (255 - color1.rgb[1]) / 255;
-        var b = color2.rgb[2] < 128 ? 2 * color2.rgb[2] * color1.rgb[2] / 255 : 255 - 2 * (255 - color2.rgb[2]) * (255 - color1.rgb[2]) / 255;
-        return this.rgb(r, g, b);
-    },
-    difference: function(color1, color2) {
-        var r = Math.abs(color1.rgb[0] - color2.rgb[0]);
-        var g = Math.abs(color1.rgb[1] - color2.rgb[1]);
-        var b = Math.abs(color1.rgb[2] - color2.rgb[2]);
-        return this.rgb(r, g, b);
-    },
-    exclusion: function(color1, color2) {
-        var r = color1.rgb[0] + color2.rgb[0] * (255 - color1.rgb[0] - color1.rgb[0]) / 255;
-        var g = color1.rgb[1] + color2.rgb[1] * (255 - color1.rgb[1] - color1.rgb[1]) / 255;
-        var b = color1.rgb[2] + color2.rgb[2] * (255 - color1.rgb[2] - color1.rgb[2]) / 255;
-        return this.rgb(r, g, b);
-    },
-    average: function(color1, color2) {
-        var r = (color1.rgb[0] + color2.rgb[0]) / 2;
-        var g = (color1.rgb[1] + color2.rgb[1]) / 2;
-        var b = (color1.rgb[2] + color2.rgb[2]) / 2;
-        return this.rgb(r, g, b);
-    },
-    negation: function(color1, color2) {
-        var r = 255 - Math.abs(255 - color2.rgb[0] - color1.rgb[0]);
-        var g = 255 - Math.abs(255 - color2.rgb[1] - color1.rgb[1]);
-        var b = 255 - Math.abs(255 - color2.rgb[2] - color1.rgb[2]);
-        return this.rgb(r, g, b);
-    },
     tint: function(color, amount) {
         return this.mix(this.rgb(255,255,255), color, amount);
     },
@@ -373,7 +395,14 @@ tree.functions = {
     },
     extract: function(values, index) {
         index = index.value - 1; // (1-based index)
-        return values.value[index];
+        // handle non-array values as an array of length 1
+        // return 'undefined' if index is invalid
+        return Array.isArray(values.value)
+            ? values.value[index] : Array(values)[index];
+    },
+    length: function(values) {
+        var n = Array.isArray(values.value) ? values.value.length : 1;
+        return new tree.Dimension(n);
     },
 
     "data-uri": function(mimetypeNode, filePathNode) {
@@ -385,12 +414,19 @@ tree.functions = {
         var mimetype = mimetypeNode.value;
         var filePath = (filePathNode && filePathNode.value);
 
-        var fs = require("fs"),
-            path = require("path"),
+        var fs = require('./fs'),
+            path = require('path'),
             useBase64 = false;
 
         if (arguments.length < 2) {
             filePath = mimetype;
+        }
+
+        var fragmentStart = filePath.indexOf('#');
+        var fragment = '';
+        if (fragmentStart!==-1) {
+            fragment = filePath.slice(fragmentStart);
+            filePath = filePath.slice(0, fragmentStart);
         }
 
         if (this.env.isPathRelative(filePath)) {
@@ -415,10 +451,10 @@ tree.functions = {
             // use base 64 unless it's an ASCII or UTF-8 format
             var charset = mime.charsets.lookup(mimetype);
             useBase64 = ['US-ASCII', 'UTF-8'].indexOf(charset) < 0;
-            if (useBase64) mimetype += ';base64';
+            if (useBase64) { mimetype += ';base64'; }
         }
         else {
-            useBase64 = /;base64$/.test(mimetype)
+            useBase64 = /;base64$/.test(mimetype);
         }
 
         var buf = fs.readFileSync(filePath);
@@ -435,17 +471,90 @@ tree.functions = {
                 }
 
                 return new tree.URL(filePathNode || mimetypeNode, this.currentFileInfo).eval(this.env);
-            } else if (!this.env.silent) {
-                // if explicitly disabled (via --no-ie-compat on CLI, or env.ieCompat === false), merely warn
-                console.warn("WARNING: Embedding %s (%dKB) exceeds IE8's data-uri size limit of %dKB!", filePath, fileSizeInKB, DATA_URI_MAX_KB);
             }
         }
 
         buf = useBase64 ? buf.toString('base64')
                         : encodeURIComponent(buf);
 
-        var uri = "'data:" + mimetype + ',' + buf + "'";
+        var uri = "\"data:" + mimetype + ',' + buf + fragment + "\"";
         return new(tree.URL)(new(tree.Anonymous)(uri));
+    },
+
+    "svg-gradient": function(direction) {
+
+        function throwArgumentDescriptor() {
+            throw { type: "Argument", message: "svg-gradient expects direction, start_color [start_position], [color position,]..., end_color [end_position]" };
+        }
+
+        if (arguments.length < 3) {
+            throwArgumentDescriptor();
+        }
+        var stops = Array.prototype.slice.call(arguments, 1),
+            gradientDirectionSvg,
+            gradientType = "linear",
+            rectangleDimension = 'x="0" y="0" width="1" height="1"',
+            useBase64 = true,
+            renderEnv = {compress: false},
+            returner,
+            directionValue = direction.toCSS(renderEnv),
+            i, color, position, positionValue, alpha;
+
+        switch (directionValue) {
+            case "to bottom":
+                gradientDirectionSvg = 'x1="0%" y1="0%" x2="0%" y2="100%"';
+                break;
+            case "to right":
+                gradientDirectionSvg = 'x1="0%" y1="0%" x2="100%" y2="0%"';
+                break;
+            case "to bottom right":
+                gradientDirectionSvg = 'x1="0%" y1="0%" x2="100%" y2="100%"';
+                break;
+            case "to top right":
+                gradientDirectionSvg = 'x1="0%" y1="100%" x2="100%" y2="0%"';
+                break;
+            case "ellipse":
+            case "ellipse at center":
+                gradientType = "radial";
+                gradientDirectionSvg = 'cx="50%" cy="50%" r="75%"';
+                rectangleDimension = 'x="-50" y="-50" width="101" height="101"';
+                break;
+            default:
+                throw { type: "Argument", message: "svg-gradient direction must be 'to bottom', 'to right', 'to bottom right', 'to top right' or 'ellipse at center'" };
+        }
+        returner = '<?xml version="1.0" ?>' +
+            '<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="100%" height="100%" viewBox="0 0 1 1" preserveAspectRatio="none">' +
+            '<' + gradientType + 'Gradient id="gradient" gradientUnits="userSpaceOnUse" ' + gradientDirectionSvg + '>';
+
+        for (i = 0; i < stops.length; i+= 1) {
+            if (stops[i].value) {
+                color = stops[i].value[0];
+                position = stops[i].value[1];
+            } else {
+                color = stops[i];
+                position = undefined;
+            }
+
+            if (!(color instanceof tree.Color) || (!((i === 0 || i+1 === stops.length) && position === undefined) && !(position instanceof tree.Dimension))) {
+                throwArgumentDescriptor();
+            }
+            positionValue = position ? position.toCSS(renderEnv) : i === 0 ? "0%" : "100%";
+            alpha = color.alpha;
+            returner += '<stop offset="' + positionValue + '" stop-color="' + color.toRGB() + '"' + (alpha < 1 ? ' stop-opacity="' + alpha + '"' : '') + '/>';
+        }
+        returner += '</' + gradientType + 'Gradient>' +
+                    '<rect ' + rectangleDimension + ' fill="url(#gradient)" /></svg>';
+
+        if (useBase64) {
+            try {
+                returner = require('./encoder').encodeBase64(returner); // TODO browser implementation
+            } catch(e) {
+                useBase64 = false;
+            }
+        }
+
+        returner = "'data:image/svg+xml" + (useBase64 ? ";base64" : "") + "," + returner + "'";
+        return new(tree.URL)(new(tree.Anonymous)(returner));
     }
 };
 
@@ -477,21 +586,145 @@ tree._mime = {
     }
 };
 
-var mathFunctions = [{name:"ceil"}, {name:"floor"}, {name: "sqrt"}, {name:"abs"},
-        {name:"tan", unit: ""}, {name:"sin", unit: ""}, {name:"cos", unit: ""},
-        {name:"atan", unit: "rad"}, {name:"asin", unit: "rad"}, {name:"acos", unit: "rad"}],
-    createMathFunction = function(name, unit) {
-        return function(n) {
-            if (unit != null) {
-                n = n.unify();
-            }
-            return this._math(Math[name], unit, n);
-        };
-    };
+// Math
 
-for(var i = 0; i < mathFunctions.length; i++) {
-    tree.functions[mathFunctions[i].name] = createMathFunction(mathFunctions[i].name, mathFunctions[i].unit);
+var mathFunctions = {
+ // name,  unit
+    ceil:  null,
+    floor: null,
+    sqrt:  null,
+    abs:   null,
+    tan:   "",
+    sin:   "",
+    cos:   "",
+    atan:  "rad",
+    asin:  "rad",
+    acos:  "rad"
+};
+
+function _math(fn, unit, n) {
+    if (!(n instanceof tree.Dimension)) {
+        throw { type: "Argument", message: "argument must be a number" };
+    }
+    if (unit == null) {
+        unit = n.unit;
+    } else {
+        n = n.unify();
+    }
+    return new(tree.Dimension)(fn(parseFloat(n.value)), unit);
 }
+
+// ~ End of Math
+
+// Color Blending
+// ref: http://www.w3.org/TR/compositing-1
+
+function colorBlend(mode, color1, color2) {
+    var ab = color1.alpha, cb, // backdrop
+        as = color2.alpha, cs, // source
+        ar, cr, r = [];        // result
+
+    ar = as + ab * (1 - as);
+    for (var i = 0; i < 3; i++) {
+        cb = color1.rgb[i] / 255;
+        cs = color2.rgb[i] / 255;
+        cr = mode(cb, cs);
+        if (ar) {
+            cr = (as * cs + ab * (cb
+                - as * (cb + cs - cr))) / ar;
+        }
+        r[i] = cr * 255;
+    }
+
+    return new(tree.Color)(r, ar);
+}
+
+var colorBlendMode = {
+    multiply: function(cb, cs) {
+        return cb * cs;
+    },
+    screen: function(cb, cs) {
+        return cb + cs - cb * cs;
+    },
+    overlay: function(cb, cs) {
+        cb *= 2;
+        return (cb <= 1)
+            ? colorBlendMode.multiply(cb, cs)
+            : colorBlendMode.screen(cb - 1, cs);
+    },
+    softlight: function(cb, cs) {
+        var d = 1, e = cb;
+        if (cs > 0.5) {
+            e = 1;
+            d = (cb > 0.25) ? Math.sqrt(cb)
+                : ((16 * cb - 12) * cb + 4) * cb;
+        }
+        return cb - (1 - 2 * cs) * e * (d - cb);
+    },
+    hardlight: function(cb, cs) {
+        return colorBlendMode.overlay(cs, cb);
+    },
+    difference: function(cb, cs) {
+        return Math.abs(cb - cs);
+    },
+    exclusion: function(cb, cs) {
+        return cb + cs - 2 * cb * cs;
+    },
+
+    // non-w3c functions:
+    average: function(cb, cs) {
+        return (cb + cs) / 2;
+    },
+    negation: function(cb, cs) {
+        return 1 - Math.abs(cb + cs - 1);
+    }
+};
+
+// ~ End of Color Blending
+
+tree.defaultFunc = {
+    eval: function () {
+        var v = this.value_, e = this.error_;
+        if (e) {
+            throw e;
+        }
+        if (v != null) {
+            return v ? tree.True : tree.False;
+        }
+    },
+    value: function (v) {
+        this.value_ = v;
+    },
+    error: function (e) {
+        this.error_ = e;
+    },
+    reset: function () {
+        this.value_ = this.error_ = null;
+    }
+};
+
+function initFunctions() {
+    var f, tf = tree.functions;
+
+    // math
+    for (f in mathFunctions) {
+        if (mathFunctions.hasOwnProperty(f)) {
+            tf[f] = _math.bind(null, Math[f], mathFunctions[f]);
+        }
+    }
+
+    // color blending
+    for (f in colorBlendMode) {
+        if (colorBlendMode.hasOwnProperty(f)) {
+            tf[f] = colorBlend.bind(null, colorBlendMode[f]);
+        }
+    }
+
+    // default
+    f = tree.defaultFunc;
+    tf["default"] = f.eval.bind(f);
+
+} initFunctions();
 
 function hsla(color) {
     return tree.functions.hsla(color.h, color.s, color.l, color.a);
@@ -521,6 +754,12 @@ function number(n) {
 function clamp(val) {
     return Math.min(1, Math.max(0, val));
 }
+
+tree.fround = function(env, value) {
+    var p = env && env.numPrecision;
+    //add "epsilon" to ensure numbers like 1.000000005 (represented as 1.000000004999....) are properly rounded...
+    return (p == null) ? value : Number((value + 2e-16).toFixed(p));
+};
 
 tree.functionCall = function(env, currentFileInfo) {
     this.env = env;
