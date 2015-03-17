@@ -19,7 +19,6 @@
     <LessImportAllFilesAsLess Condition="$(LessImportAllFilesAsLess) == ''">False</LessImportAllFilesAsLess>
     <LessKeepRelativeDirectory Condition="$(LessKeepRelativeDirectory) == ''">True</LessKeepRelativeDirectory>
     <LessPath Condition="$(LessVerbose) == ''"></LessPath>
-    <LessOutputExtension Condition="'$(LessOutputExtension)' == ''">.css</LessOutputExtension>
     <OnAfter_CopyWebApplication>
       $(OnAfter_CopyWebApplication);
       CompileLessFiles;
@@ -33,13 +32,13 @@
   <Target Name="CompileLessFiles" AfterTargets="_CopyWebApplication">
     <Message Text="Compiling .Less files (with Node)..." />
     <NodelessCompile InputFiles="@(DotLess)" OutputFolder="$(LessOutputDirectory)" MinifyOutput="$(LessMinifyOutput)" CreateSourceMap="$(LessCreateSourceMap)" LessPath="$(LessPath)"
-                     Verbose="$(LessVerbose)" Extension="$(LessOutputExtension)"
+                     Verbose="$(LessVerbose)"
                     Debug="$(LessDebugMode)" ImportAllFilesAsLess="$(LessImportAllFilesAsLess)" KeepRelativeDirectory="$(LessKeepRelativeDirectory)"/>
   </Target>
   <Target Name="CompileLessFilesForMsBuild" BeforeTargets="Package">
     <Message Text="Compiling .Less files (with Node)..." />
     <NodelessCompile InputFiles="@(DotLess)" OutputFolder="$(WPPAllFilesInSingleFolder)" MinifyOutput="$(LessMinifyOutput)" CreateSourceMap="$(LessCreateSourceMap)" LessPath="$(LessPath)"
-                     Verbose="$(LessVerbose)" Extension="$(LessOutputExtension)"
+                     Verbose="$(LessVerbose)"
                     Debug="$(LessDebugMode)" ImportAllFilesAsLess="$(LessImportAllFilesAsLess)" KeepRelativeDirectory="$(LessKeepRelativeDirectory)"/>
   </Target>
 </Project>
