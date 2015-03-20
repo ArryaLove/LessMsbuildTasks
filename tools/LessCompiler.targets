@@ -12,7 +12,7 @@
   </ItemGroup>
   <PropertyGroup>
     <LessOutputDirectory Condition="$(LessOutputDirectory) == '' And $(WebProjectOutputDir) !=''">$(WebProjectOutputDir)</LessOutputDirectory>
-    <LessOutputDirectory Condition="$(LessOutputDirectory) == '' And $(WebProjectOutputDir ==''">$(MSBuildProjectDirectory)</LessOutputDirectory>
+    <LessOutputDirectory Condition="$(LessOutputDirectory) == '' And $(WebProjectOutputDir) ==''">$(MSBuildProjectDirectory)</LessOutputDirectory>
     <LessMinifyOutput Condition="$(LessMinifyOutput) == ''">False</LessMinifyOutput>
 		<LessCreateSourceMap Condition="$(LessCreateSourceMap) == ''">False</LessCreateSourceMap>
     <LessDebugMode Condition="$(LessDebugMode) == ''">False</LessDebugMode>
