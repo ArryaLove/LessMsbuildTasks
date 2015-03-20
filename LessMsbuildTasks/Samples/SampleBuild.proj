@@ -2,7 +2,6 @@
 <Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
     <Import Project="..\..\tools\LessCompiler.targets" Condition="Exists('..\..\tools\LessCompiler.targets')" />
     <PropertyGroup>
-        <LessOutputDirectory>$(MSBuildProjectDirectory)</LessOutputDirectory>
     </PropertyGroup>
     <Target Name="Clean">
         <Message Importance="High" Text="Cleaning"/>
