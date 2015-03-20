@@ -28,10 +28,10 @@ namespace LessMsbuildTasks
         /// </summary>
         public bool MinifyOutput { get; set; }
 
-		/// <summary>
-		/// If true, source maps are created
-		/// </summary>
-		public bool CreateSourceMap { get; set; }
+			  /// <summary>
+			  /// If true, source maps are created
+			  /// </summary>
+				public bool CreateSourceMap { get; set; }
 
         /// <summary>
         /// Adds --line-numbers=comments
@@ -49,11 +49,6 @@ namespace LessMsbuildTasks
         /// Causes all imports to be parsed.  The default is to just parse .less imports.
         /// </summary>
         public bool ImportAllFilesAsLess { get; set; }
-
-        /// <summary>
-        /// The extension to convert the files to.
-        /// </summary>
-        public string Extension{ get; set; }
 
         /// <summary>
         /// Path to Less folder. This folder should have a bin/lessc file.
@@ -93,11 +88,10 @@ namespace LessMsbuildTasks
                 try {
                     var inputFile = new FileInfo(item.GetMetadata("FullPath"));
                     FileInfo outputFile;
-                    
                     if (KeepRelativeDirectory)
-                        outputFile = new FileInfo(Path.Combine(OutputFolder, item.GetMetadata("RelativeDir"), item.GetMetadata("FileName") + Extension));
+                        outputFile = new FileInfo(Path.Combine(OutputFolder, item.GetMetadata("RelativeDir"), item.GetMetadata("FileName") + ".css"));
                     else
-                        outputFile = new FileInfo(Path.Combine(OutputFolder, item.GetMetadata("Filename") + Extension));
+                        outputFile = new FileInfo(Path.Combine(OutputFolder, item.GetMetadata("Filename") + ".css"));
 
                     var shouldRun = true;
 
