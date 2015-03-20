@@ -61,9 +61,15 @@ namespace LessMsbuildTasks
         public string LessPath { get; set; }
 
         /// <summary>
-        /// ????
+        /// If this is true it will place the generated css files in the same relative file structure as the original files (relative to the project root)
         /// </summary>
         public bool KeepRelativeDirectory { get; set; }
+
+        /// <summary>
+        /// Add --relative-urls
+        /// Makes all of the urls in the .less file relative.
+        /// </summary>
+        public bool UseRelativeUrls { get; set; }
 
 
         /// <summary>
@@ -175,7 +181,8 @@ namespace LessMsbuildTasks
                 args.Add( "--strict-imports" );
 
             //Add this option to make urls relative.
-            args.Add( "--relative-urls" );
+            if (UseRelativeUrls)
+                args.Add( "--relative-urls" );
 
             //Add input file
             args.Add( Quote(inputFilePath) );
