@@ -14,6 +14,6 @@
     <files>
         <file src="tools\**\*.*" target="tools\"/>
 		<file src="tools\less\bin\lessc" target="tools\less\bin\lessc"/>
-		<file src="content\*.*" target="content\" />
+		<file src="readme.txt" target="" />
     </files>
 </package>
