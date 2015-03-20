@@ -69,7 +69,7 @@ namespace LessMsbuildTasks
         /// Add --relative-urls
         /// Makes all of the urls in the .less file relative.
         /// </summary>
-        public bool UseRelativeUrls { get; set; }
+        public bool LessDisableUrlRewriting { get; set; }
 
 
         /// <summary>
@@ -181,7 +181,7 @@ namespace LessMsbuildTasks
                 args.Add( "--strict-imports" );
 
             //Add this option to make urls relative.
-            if (UseRelativeUrls)
+            if (!LessDisableUrlRewriting)
                 args.Add( "--relative-urls" );
 
             //Add input file
