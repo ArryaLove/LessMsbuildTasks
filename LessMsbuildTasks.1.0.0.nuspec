@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
     <metadata>
         <id>LessMsbuildTasks</id>
-        <version>1.0.9</version>
+        <version>1.0.9.1</version>
         <title>.Less Msbuild Tasks</title>
         <authors>James</authors>
         <owners />
@@ -13,7 +13,7 @@
     </metadata>
     <files>
         <file src="tools\**\*.*" target="tools\"/>
-        <file src="nugetBuild\LessCompiler.targets" target="build\LessCompiler.targets"/>
+        <file src="nugetBuild\LessCompiler.targets" target="build\LessMsbuildTasks.targets"/>
 		<file src="tools\less\bin\lessc" target="tools\less\bin\lessc"/>
 		<file src="readme.txt" target="" />
     </files>
