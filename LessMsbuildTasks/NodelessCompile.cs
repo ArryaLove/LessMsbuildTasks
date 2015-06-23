@@ -71,6 +71,17 @@ namespace LessMsbuildTasks
         /// </summary>
         public bool LessDisableUrlRewriting { get; set; }
 
+		/// <summary>
+		/// Set global variables for the less compilation defined in an item group array
+		/// Format for each item "my-var=value"
+		/// </summary>
+		public string[] LessGlobalVars { get; set; }
+
+		/// <summary>
+		/// Modify variables for the less compilation defined in an item group array
+		/// Format for each item "my-var=value"
+		/// </summary>
+		public string[] LessModifyVars { get; set; }
 
         /// <summary>
         /// Maintain a list of processed files so we don't process them again.
@@ -189,6 +200,18 @@ namespace LessMsbuildTasks
 
             //Add output file
             args.Add( Quote(outputFilePath) );
+
+			if ( this.LessGlobalVars != null ) {
+				foreach ( var globalVar in this.LessGlobalVars ) {
+					args.Add( "--global-var=\"" + globalVar + "\"" );
+				}
+			}
+
+			if ( this.LessModifyVars != null ) {
+				foreach ( var modVar in this.LessModifyVars ) {
+					args.Add( "--modify-var=\"" + modVar + "\"" );
+				}
+			}
 
             return String.Join( " ", args );
 
