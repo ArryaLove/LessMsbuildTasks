@@ -23,15 +23,13 @@ namespace LessMsbuildTasks
 
         /// <summary>
         /// Adds --compress
-        /// Note: seems like latest alpha version (not this one) supports --clean-css
-        /// We may want to change to this after it's released
         /// </summary>
         public bool MinifyOutput { get; set; }
 
-		/// <summary>
-		/// If true, source maps are created
-		/// </summary>
-		public bool CreateSourceMap { get; set; }
+		    /// <summary>
+		    /// If true, source maps are created
+		    /// </summary>
+		    public bool CreateSourceMap { get; set; }
 
         /// <summary>
         /// Adds --line-numbers=comments
@@ -182,7 +180,7 @@ namespace LessMsbuildTasks
 
             //Compress CSS
             if (MinifyOutput)
-                args.Add( "-compress" );
+              args.Add("--clean-css");
 
 					if(CreateSourceMap)
 						args.Add(string.Format("--source-map={0}.map", outputFilePath));
