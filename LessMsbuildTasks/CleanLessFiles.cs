@@ -12,8 +12,10 @@ namespace LessMsbuildTasks
 
         [Required]
         public string OutputFolder { get; set; }
-        
+
         public bool KeepRelativeDirectory { get; set; }
+
+        public string Extension { get; set; }
 
         public override bool Execute()
         {
@@ -25,9 +27,9 @@ namespace LessMsbuildTasks
                     var inputFile = new FileInfo(item.GetMetadata("FullPath"));
                     FileInfo outputFile;
                     if (KeepRelativeDirectory)
-                        outputFile = new FileInfo(Path.Combine(OutputFolder, item.GetMetadata("RelativeDir"), item.GetMetadata("FileName") + ".css"));
+                        outputFile = new FileInfo(Path.Combine(OutputFolder, item.GetMetadata("RelativeDir"), item.GetMetadata("FileName") + Extension));
                     else
-                        outputFile = new FileInfo(Path.Combine(OutputFolder, item.GetMetadata("Filename") + ".css"));
+                        outputFile = new FileInfo(Path.Combine(OutputFolder, item.GetMetadata("Filename") + Extension));
 
                     if (outputFile.Exists)
                     {
