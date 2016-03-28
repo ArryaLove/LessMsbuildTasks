@@ -259,7 +259,18 @@ namespace LessMsbuildTasks
                 if (!_Errors.Contains( errorStr ))
                 {
                     result = false;
-                    Log.LogError( errorStr );
+                    try
+                    {
+                        var groups = Regex.Match(errorStr, @"(\w+):.*?on line (\d+), column (\d+):").Groups;
+                        var errorClass = groups[1].Value;
+                        var line = Int32.Parse(groups[2].Value);
+                        var column = Int32.Parse(groups[3].Value);
+                        Log.LogError("CompileLessFile", "", errorClass, inputFilePath, line, column, line, column, errorStr);
+                    }
+                    catch
+                    {
+                        Log.LogError(errorStr);
+                    }
                     _Errors.Add( errorStr );
                 }
             }
